@@ -1,4 +1,4 @@
-import { createEffect, runWithOwner } from 'solid-js';
+import { createEffect, onCleanup, runWithOwner } from 'solid-js';
 
 import { createRenderer } from '@/utils';
 import { waitForElement } from '@/utils/wait-for-element';
@@ -96,6 +96,9 @@ export const renderer = createRenderer<
         const lines = lyrics?.data?.lines;
 
         const token = ++broadcastToken;
+        onCleanup(() => {
+          broadcastToken++;
+        });
         const send = (payload: unknown) => {
           if (token === broadcastToken) {
             ctx.ipc.send('synced-lyrics:mini-lyrics', payload);
@@ -148,7 +151,8 @@ export const renderer = createRenderer<
     });
   },
 
-  stop() {
+  stop(ctx: RendererContext<SyncedLyricsPluginConfig>) {
     disposeReactiveRoot();
+    ctx.ipc.send('synced-lyrics:mini-lyrics', { state: 'none' });
   },
 });
