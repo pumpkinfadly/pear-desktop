@@ -27,6 +27,8 @@ export default createPlugin<
     defaultTextString: '♪',
     lineEffect: 'fancy',
     romanization: true,
+    translation: false,
+    translationLanguage: 'en',
   },
 
   menu,

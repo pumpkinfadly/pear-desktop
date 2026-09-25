@@ -6,6 +6,7 @@ import {
   convertChineseCharacter,
   romanize,
   simplifyUnicode,
+  translateLine,
 } from '../utils';
 
 interface PlainLyricsProps {
@@ -30,6 +31,18 @@ export const PlainLyrics = (props: PlainLyricsProps) => {
     romanize(input).then((result) => {
       setRomanization(canonicalize(result));
     });
+  });
+
+  const [translation, setTranslation] = createSignal('');
+  createEffect(() => {
+    if (!config()?.translation) return;
+
+    const input = canonicalize(text());
+    translateLine(input, config()?.translationLanguage ?? 'en').then(
+      (result) => {
+        if (result) setTranslation(result);
+      },
+    );
   });
 
   return (
@@ -57,6 +70,14 @@ export const PlainLyrics = (props: PlainLyricsProps) => {
           class="romaji"
           text={{
             runs: [{ text: romanization() }],
+          }}
+        />
+      </Show>
+      <Show when={config()?.translation && translation()}>
+        <yt-formatted-string
+          class="translation"
+          text={{
+            runs: [{ text: translation() }],
           }}
         />
       </Show>

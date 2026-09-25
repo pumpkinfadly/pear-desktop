@@ -10,6 +10,7 @@ import {
   convertChineseCharacter,
   romanize,
   simplifyUnicode,
+  translateLine,
 } from '../utils';
 
 interface SyncedLineProps {
@@ -103,6 +104,18 @@ export const SyncedLine = (props: SyncedLineProps) => {
     });
   });
 
+  const [translation, setTranslation] = createSignal('');
+  createEffect(() => {
+    const input = canonicalize(text());
+    if (!config()?.translation) return;
+
+    translateLine(input, config()?.translationLanguage ?? 'en').then(
+      (result) => {
+        if (result) setTranslation(result);
+      },
+    );
+  });
+
   return (
     <Show fallback={<EmptyLine {...props} />} when={text()}>
       <div
@@ -163,6 +176,29 @@ export const SyncedLine = (props: SyncedLineProps) => {
             >
               <span class="romaji">
                 <For each={romanization().split(' ')}>
+                  {(word, index) => {
+                    return (
+                      <span
+                        style={{
+                          'transition-delay': `${index() * 0.05}s`,
+                          'animation-delay': `${index() * 0.05}s`,
+                        }}
+                      >
+                        <yt-formatted-string
+                          text={{
+                            runs: [{ text: `${word} ` }],
+                          }}
+                        />
+                      </span>
+                    );
+                  }}
+                </For>
+              </span>
+            </Show>
+
+            <Show when={config()?.translation && translation()}>
+              <span class="translation">
+                <For each={translation().split(' ')}>
                   {(word, index) => {
                     return (
                       <span

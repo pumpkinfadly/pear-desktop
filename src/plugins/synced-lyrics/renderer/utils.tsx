@@ -12,6 +12,7 @@ import { detect } from 'tinyld';
 
 import { waitForElement } from '@/utils/wait-for-element';
 
+import { netFetch } from './index';
 import { LyricsRenderer, setIsVisible } from './renderer';
 
 export const selectors = {
@@ -184,8 +185,14 @@ export const romanizeJapanese = async (line: string) =>
     mode: 'spaced',
   }) ?? line;
 
+const hanjaTranslate = (
+  'translate' in hanja
+    ? hanja
+    : (hanja as unknown as { default: typeof hanja }).default
+).translate;
+
 export const romanizeHangul = (line: string) =>
-  esHangulRomanize(hanja.translate(line, 'SUBSTITUTION'));
+  esHangulRomanize(hanjaTranslate(line, 'SUBSTITUTION'));
 
 export const romanizeChinese = (line: string) => {
   return line.replaceAll(/[\u4E00-\u9FFF]+/g, (match) => {
@@ -261,4 +268,45 @@ export const romanize = async (line: string) => {
   if (hasHindi([line])) line = romanizeHindi(line);
 
   return line;
+};
+
+const translationCache = new Map<string, string>();
+
+export const translateLine = async (
+  line: string,
+  target: string,
+): Promise<string | null> => {
+  if (!netFetch || !line || /^\[.+\]$/s.test(line)) return null;
+
+  const key = `${target}:${line}`;
+  const cached = translationCache.get(key);
+  if (cached !== undefined) return cached || null;
+
+  if (translationCache.size > 2000) translationCache.clear();
+
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${encodeURIComponent(target)}&dt=t&q=${encodeURIComponent(line)}`;
+    const [status, body] = await netFetch(url);
+    if (status !== 200) {
+      translationCache.set(key, '');
+      return null;
+    }
+
+    const data = JSON.parse(body) as [Array<[string, string]>];
+    const translated =
+      data?.[0]
+        ?.map((segment) => segment[0])
+        .join('')
+        .trim() ?? '';
+    if (!translated || translated === line) {
+      translationCache.set(key, '');
+      return null;
+    }
+
+    translationCache.set(key, translated);
+    return translated;
+  } catch {
+    translationCache.set(key, '');
+    return null;
+  }
 };

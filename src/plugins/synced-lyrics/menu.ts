@@ -6,6 +6,24 @@ import type { SyncedLyricsPluginConfig } from './types';
 import type { MenuContext } from '@/types/contexts';
 import type { MenuItemConstructorOptions } from 'electron';
 
+const translationLanguages = [
+  { code: 'en', name: 'English' },
+  { code: 'ko', name: '한국어 (Korean)' },
+  { code: 'ja', name: '日本語 (Japanese)' },
+  { code: 'zh-CN', name: '简体中文 (Chinese Simplified)' },
+  { code: 'zh-TW', name: '繁體中文 (Chinese Traditional)' },
+  { code: 'es', name: 'Español (Spanish)' },
+  { code: 'fr', name: 'Français (French)' },
+  { code: 'de', name: 'Deutsch (German)' },
+  { code: 'pt', name: 'Português (Portuguese)' },
+  { code: 'ru', name: 'Русский (Russian)' },
+  { code: 'id', name: 'Bahasa Indonesia (Indonesian)' },
+  { code: 'vi', name: 'Tiếng Việt (Vietnamese)' },
+  { code: 'th', name: 'ไทย (Thai)' },
+  { code: 'ar', name: 'العربية (Arabic)' },
+  { code: 'hi', name: 'हिन्दी (Hindi)' },
+];
+
 export const menu = async (
   ctx: MenuContext<SyncedLyricsPluginConfig>,
 ): Promise<MenuItemConstructorOptions[]> => {
@@ -152,6 +170,30 @@ export const menu = async (
           romanization: item.checked,
         });
       },
+    },
+    {
+      label: t('plugins.synced-lyrics.menu.translation.label'),
+      toolTip: t('plugins.synced-lyrics.menu.translation.tooltip'),
+      type: 'checkbox',
+      checked: config.translation,
+      click(item) {
+        ctx.setConfig({
+          translation: item.checked,
+        });
+      },
+    },
+    {
+      label: t('plugins.synced-lyrics.menu.translation-language.label'),
+      toolTip: t('plugins.synced-lyrics.menu.translation-language.tooltip'),
+      type: 'submenu',
+      submenu: translationLanguages.map(({ code, name }) => ({
+        label: name,
+        type: 'radio',
+        checked: (config.translationLanguage ?? 'en') === code,
+        click() {
+          ctx.setConfig({ translationLanguage: code });
+        },
+      })),
     },
     {
       label: t('plugins.synced-lyrics.menu.convert-chinese-character.label'),
