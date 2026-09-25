@@ -5,8 +5,10 @@ import { waitForElement } from '@/utils/wait-for-element';
 
 import { disposeReactiveRoot, reactiveOwner } from './reactive-root';
 import { config, setConfig, setCurrentTime } from './renderer';
-import { currentLyrics, fetchLyrics } from './store';
+import { currentLyrics, fetchLyrics, lyricsStore } from './store';
 import { romanize, selectors, tabStates, translateIfNeeded } from './utils';
+
+import { providerNames } from '../providers';
 
 import type { SyncedLyricsPluginConfig } from '../types';
 import type { SongInfo } from '@/providers/song-info';
@@ -93,7 +95,17 @@ export const renderer = createRenderer<
       createEffect(() => {
         const lyrics = currentLyrics();
         const conf = config();
-        const lines = lyrics?.data?.lines;
+
+        // The provider auto-switch lives in the LyricsPicker UI, which
+        // only mounts when the main window opens the lyrics tab. Fall
+        // back to any provider with lines so the mini player also works
+        // when the lyrics tab was never opened.
+        let lines = lyrics?.data?.lines;
+        if (!lines?.length) {
+          lines = providerNames
+            .map((name) => lyricsStore.lyrics[name])
+            .find((provider) => provider.data?.lines?.length)?.data?.lines;
+        }
 
         const token = ++broadcastToken;
         onCleanup(() => {
@@ -106,7 +118,10 @@ export const renderer = createRenderer<
         };
 
         if (!lines?.length) {
-          if (lyrics?.state === 'fetching') {
+          const anyFetching = providerNames.some(
+            (name) => lyricsStore.lyrics[name].state === 'fetching',
+          );
+          if (lyrics?.state === 'fetching' || anyFetching) {
             send({ state: 'loading' });
           } else if (lyrics) {
             send({ state: 'none' });
