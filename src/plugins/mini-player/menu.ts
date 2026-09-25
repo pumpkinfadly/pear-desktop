@@ -4,6 +4,14 @@ import type { MiniPlayerPluginConfig } from './index';
 import type { MenuContext } from '@/types/contexts';
 import type { MenuItemConstructorOptions } from 'electron';
 
+const backgroundOpacities = [
+  { value: 1, key: 'solid' },
+  { value: 0.75, key: 'seventy-five' },
+  { value: 0.5, key: 'fifty' },
+  { value: 0.25, key: 'twenty-five' },
+  { value: 0.01, key: 'invisible' },
+];
+
 const lyricsColors = [
   { code: '#ffffff', key: 'white' },
   { code: '#ffd700', key: 'gold' },
@@ -66,13 +74,33 @@ export const menu = async (
       },
     },
     {
-      label: t('plugins.mini-player.menu.transparent-bg.label'),
-      toolTip: t('plugins.mini-player.menu.transparent-bg.tooltip'),
+      label: t('plugins.mini-player.menu.bg-opacity.label'),
+      toolTip: t('plugins.mini-player.menu.bg-opacity.tooltip'),
+      type: 'submenu',
+      submenu: backgroundOpacities.map(({ value, key }) => ({
+        label: t(`plugins.mini-player.menu.bg-opacity.values.${key}`),
+        type: 'radio',
+        checked:
+          Math.abs(
+            value -
+              Math.max(
+                0.01,
+                config.backgroundOpacity ?? (config.transparentBg ? 0.01 : 1),
+              ),
+          ) < 0.001,
+        click() {
+          ctx.setConfig({ backgroundOpacity: value });
+        },
+      })),
+    },
+    {
+      label: t('plugins.mini-player.menu.lyrics-outline.label'),
+      toolTip: t('plugins.mini-player.menu.lyrics-outline.tooltip'),
       type: 'checkbox',
-      checked: config.transparentBg ?? false,
+      checked: config.lyricsOutline ?? false,
       click(item) {
         ctx.setConfig({
-          transparentBg: item.checked,
+          lyricsOutline: item.checked,
         });
       },
     },

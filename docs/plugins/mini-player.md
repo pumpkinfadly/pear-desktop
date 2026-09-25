@@ -36,9 +36,15 @@ The `ⓘ` toolbar button hides the album art, title and artist. The playback con
 
 ![Hide album art and song info](assets/mini-player-hide-meta.png)
 
-### Transparent background ("flying lyrics")
+### Adjustable background opacity ("flying lyrics")
 
-The `☐` toolbar button makes the window background invisible, so the lyrics appear to float on your desktop. Everything except the lyrics fades out while the mouse is away and fades back in when you hover over the window.
+The `☐` toolbar button cycles the background opacity (100% → 50% → 25% → 0%), or pick an exact level under **Plugins → Mini Player → Background opacity** (100% / 75% / 50% / 25% / 0%). At 0% the lyrics appear to float on your desktop. Below 100%, everything except the lyrics fades out while the mouse is away and fades back in when you hover over the window.
+
+### Lyrics outline
+
+Enable **Plugins → Mini Player → Lyrics outline** to draw a dark outline around the lyrics. The outline width is calculated from the font size (em-based), so it automatically scales with the lyrics size buttons and the emphasis level — the current line gets a proportionally thicker outline too.
+
+### Lyrics area toggle
 
 ### Lyrics area toggle
 
@@ -63,10 +69,10 @@ The frameless window is moved by its `✥` drag handle (top left) and can be res
 | `⇕` | Cycle lyrics emphasis (None / Subtle / Normal / Strong) |
 | `ⓘ` | Show / hide album art and song info |
 | `♫` | Show / hide the lyrics area |
-| `☐` | Transparent background |
+| `☐` | Cycle background opacity (100 / 50 / 25 / 0%) |
 | `▣` | Switch to the main player |
 
-The toolbar sits in the top right corner. Its icons are slightly dimmed and brighten on hover; in transparent mode it is fully hidden until you hover over the window. The bottom row has previous / play-pause / next buttons and a seek bar.
+The toolbar sits in the top right corner. Its icons are slightly dimmed and brighten on hover; when the background opacity is below 100% it is fully hidden until you hover over the window. The bottom row has previous / play-pause / next buttons and a seek bar.
 
 ## Menu reference
 
@@ -78,7 +84,8 @@ All settings live under **Plugins → Mini Player** in the main window:
 | Always on top | Keep the mini player above all other windows |
 | Hide album art and song info | Hide art, title and artist (playback buttons stay) |
 | Show lyrics | Show or hide the lyrics area |
-| Transparent background | Lyrics float on the desktop; UI reveals on hover |
+| Background opacity | 100% / 75% / 50% / 25% / 0%; below 100% the UI reveals on hover |
+| Lyrics outline | Dark outline around lyrics, width scales with lyrics size |
 | Lyrics emphasis | How much larger the current line is: None / Subtle / Normal / Strong |
 | Lyrics color | Text color of the lyrics: White, Gold, Yellow, Cyan, Light Blue, Green, Red, Pink |
 

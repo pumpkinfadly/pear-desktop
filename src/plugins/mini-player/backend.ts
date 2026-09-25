@@ -25,13 +25,13 @@ const pageHtml = `<!DOCTYPE html>
   html, body { margin: 0; height: 100%; color: #fff;
     font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; }
   html { background: transparent; }
-  body { background: #0d0d0d; }
-  /* 1% alpha: a fully transparent body loses hit-testing on
-     Windows and clicks would fall through to the desktop */
-  body.transparent { background: rgba(13, 13, 13, 0.01); }
-  body.transparent :is(.art, .title, .artist, .controls, .progress-wrap,
+  /* --bg-alpha is clamped to >= 0.01 by the main process: a fully
+     transparent body loses hit-testing on Windows and clicks fall
+     through to the desktop */
+  body { background: rgba(13, 13, 13, var(--bg-alpha, 1)); }
+  body.dim-ui :is(.art, .title, .artist, .controls, .progress-wrap,
     .toolbar, .drag-handle) { opacity: 0; transition: opacity 0.2s ease; }
-  body.transparent:hover :is(.art, .title, .artist, .controls, .progress-wrap,
+  body.dim-ui:hover :is(.art, .title, .artist, .controls, .progress-wrap,
     .toolbar, .drag-handle) { opacity: 1; }
   body { display: flex; flex-direction: column; padding: 10px;
     -webkit-app-region: drag; position: relative; }
@@ -89,6 +89,17 @@ const pageHtml = `<!DOCTYPE html>
     white-space: normal; word-break: break-word; }
   .lyrics .trans { font-size: calc(10px * var(--lyr-scale, 1)); color: #888;
     white-space: normal; word-break: break-word; }
+  /* outline width is em-based so it scales with lyrics size and
+     emphasis automatically (12px base * --lyr-scale * --lyr-em) */
+  body.outline .lyrics .orig {
+    -webkit-text-stroke: calc(0.05em) rgba(0, 0, 0, 0.85);
+    paint-order: stroke fill; }
+  body.outline .lyrics .rom {
+    -webkit-text-stroke: calc(0.06em) rgba(0, 0, 0, 0.8);
+    paint-order: stroke fill; }
+  body.outline .lyrics .trans {
+    -webkit-text-stroke: calc(0.06em) rgba(0, 0, 0, 0.8);
+    paint-order: stroke fill; }
   body.hide-meta .art, body.hide-meta .title, body.hide-meta .artist {
     display: none; }
   body.hide-meta .lyrics { padding-top: 26px; }
@@ -116,7 +127,7 @@ const pageHtml = `<!DOCTYPE html>
     <a href="minip://emph-cycle" title="Cycle lyrics emphasis (None/Subtle/Normal/Strong)">&#8645;</a>
     <a href="minip://toggle-meta" title="Show/hide album art and song info">&#9432;</a>
     <a href="minip://toggle-lyrics" title="Show/hide lyrics">&#9835;</a>
-    <a href="minip://toggle-transparent" title="Transparent background">&#9744;</a>
+    <a href="minip://cycle-opacity" title="Cycle background opacity (100/50/25/0%)">&#9744;</a>
     <a href="minip://show-main" title="Switch to main player">&#9635;</a>
   </div>
   <div class="row">
@@ -287,8 +298,12 @@ const pageHtml = `<!DOCTYPE html>
       document.body.classList.toggle('hide-lyrics', !info.showLyrics);
       updateMinHeight();
     }
-    if (info.transparent !== undefined) {
-      document.body.classList.toggle('transparent', !!info.transparent);
+    if (info.bgAlpha !== undefined) {
+      document.body.style.setProperty('--bg-alpha', String(info.bgAlpha));
+      document.body.classList.toggle('dim-ui', info.bgAlpha < 1);
+    }
+    if (info.outline !== undefined) {
+      document.body.classList.toggle('outline', !!info.outline);
     }
     if (info.elapsed !== undefined) {
       elapsedSec = info.elapsed;
@@ -393,12 +408,19 @@ const emphasisMultipliers: Record<string, number> = {
   strong: 1.4,
 };
 
+const resolveOpacity = (config: {
+  backgroundOpacity?: number;
+  transparentBg?: boolean;
+}) =>
+  Math.max(0.01, config.backgroundOpacity ?? (config.transparentBg ? 0.01 : 1));
+
 const pushStyle = (config: MiniPlayerPluginConfig) => {
   push({
     scale: config.lyricsScale ?? 1,
     hideMeta: config.hideMeta ?? false,
     showLyrics: config.showLyricsArea ?? true,
-    transparent: config.transparentBg ?? false,
+    bgAlpha: resolveOpacity(config),
+    outline: config.lyricsOutline ?? false,
     color: config.lyricsColor ?? '#ffffff',
     em: emphasisMultipliers[config.lyricsEmphasis ?? 'normal'] ?? 1.25,
     emphasis: config.lyricsEmphasis ?? 'normal',
@@ -541,10 +563,14 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
         },
       );
     },
-    'minip://toggle-transparent': () => {
-      Promise.resolve(getConfigRef?.() ?? { transparentBg: false }).then(
+    'minip://cycle-opacity': () => {
+      Promise.resolve(getConfigRef?.() ?? { backgroundOpacity: 1 }).then(
         (conf) => {
-          setConfigRef?.({ transparentBg: !(conf.transparentBg ?? false) });
+          const steps = [1, 0.5, 0.25, 0.01];
+          const current = resolveOpacity(conf);
+          const idx = steps.findIndex((s) => Math.abs(s - current) < 0.001);
+          const next = steps[(idx + 1) % steps.length] ?? 1;
+          setConfigRef?.({ backgroundOpacity: next });
         },
       );
     },

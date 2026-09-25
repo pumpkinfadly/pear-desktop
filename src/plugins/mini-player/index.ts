@@ -13,7 +13,9 @@ export type MiniPlayerPluginConfig = {
   lyricsEmphasis: 'none' | 'subtle' | 'normal' | 'strong';
   hideMeta: boolean;
   showLyricsArea: boolean;
-  transparentBg: boolean;
+  transparentBg?: boolean;
+  backgroundOpacity: number;
+  lyricsOutline: boolean;
   lyricsColor: string;
   bounds?: { x: number; y: number; width: number; height: number } | null;
 };
@@ -37,7 +39,8 @@ export default createPlugin<
     lyricsEmphasis: 'normal',
     hideMeta: false,
     showLyricsArea: true,
-    transparentBg: false,
+    backgroundOpacity: 1,
+    lyricsOutline: false,
     lyricsColor: '#ffffff',
   },
 

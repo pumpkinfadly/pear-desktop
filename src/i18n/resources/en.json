@@ -633,10 +633,6 @@
           "label": "Show lyrics",
           "tooltip": "Show or hide the lyrics area in the mini player"
         },
-        "transparent-bg": {
-          "label": "Transparent background",
-          "tooltip": "Make the mini player background invisible so the lyrics float on the desktop"
-        },
         "lyrics-emphasis": {
           "label": "Lyrics emphasis",
           "tooltip": "Choose how much bigger the current line is compared to the other lines",
@@ -658,6 +654,21 @@
             "red": "Red",
             "pink": "Pink"
           }
+        },
+        "bg-opacity": {
+          "label": "Background opacity",
+          "tooltip": "Adjust the mini player background opacity; below 100% the rest of the UI fades out until you hover",
+          "values": {
+            "solid": "100%",
+            "fifty": "50%",
+            "invisible": "0% (invisible)",
+            "seventy-five": "75%",
+            "twenty-five": "25%"
+          }
+        },
+        "lyrics-outline": {
+          "label": "Lyrics outline",
+          "tooltip": "Draw an outline around the lyrics text that scales with the lyrics size, keeping it readable on any background"
         }
       },
       "name": "Mini Player",
