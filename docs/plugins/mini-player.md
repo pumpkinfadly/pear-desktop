@@ -38,13 +38,11 @@ The `ⓘ` toolbar button hides the album art, title and artist. The playback con
 
 ### Adjustable background opacity ("flying lyrics")
 
-The `☐` toolbar button cycles the background opacity (100% → 50% → 25% → 0%), or pick an exact level under **Plugins → Mini Player → Background opacity** (100% / 75% / 50% / 25% / 0%). At 0% the lyrics appear to float on your desktop. Below 100%, everything except the lyrics fades out while the mouse is away and fades back in when you hover over the window.
+The `☐` toolbar button cycles the background opacity (100% → 50% → 25% → 0%), or pick an exact level under **Plugins → Mini Player → Background opacity** (100% / 75% / 50% / 25% / 0%). At 0% the lyrics appear to float on your desktop. Below 100%, everything except the lyrics fades out while the mouse is away and fades back in when you hover over the window. A dark readability halo is calculated around the lyrics automatically — the more transparent the background, the stronger the halo — so the text stays readable over any desktop content.
 
 ### Lyrics outline
 
 Enable **Plugins → Mini Player → Lyrics outline** to draw a dark outline around the lyrics. The outline width is calculated from the font size (em-based), so it automatically scales with the lyrics size buttons and the emphasis level — the current line gets a proportionally thicker outline too.
-
-### Lyrics area toggle
 
 ### Lyrics area toggle
 

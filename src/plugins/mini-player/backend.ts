@@ -89,6 +89,16 @@ const pageHtml = `<!DOCTYPE html>
     white-space: normal; word-break: break-word; }
   .lyrics .trans { font-size: calc(10px * var(--lyr-scale, 1)); color: #888;
     white-space: normal; word-break: break-word; }
+  /* readability halo: strength is calculated from the background
+     opacity (--lyr-halo = 1 - bg alpha) and its size is em-based so it
+     scales with lyrics size and emphasis; invisible on a solid
+     background */
+  .lyrics .orig, .lyrics .rom, .lyrics .trans {
+    text-shadow:
+      0 calc(0.02em * var(--lyr-halo, 0)) calc(0.06em * var(--lyr-halo, 0))
+        rgba(0, 0, 0, calc(0.95 * var(--lyr-halo, 0))),
+      0 0 calc(0.14em * var(--lyr-halo, 0))
+        rgba(0, 0, 0, calc(0.7 * var(--lyr-halo, 0))); }
   /* outline width is em-based so it scales with lyrics size and
      emphasis automatically (12px base * --lyr-scale * --lyr-em) */
   body.outline .lyrics .orig {
@@ -300,6 +310,10 @@ const pageHtml = `<!DOCTYPE html>
     }
     if (info.bgAlpha !== undefined) {
       document.body.style.setProperty('--bg-alpha', String(info.bgAlpha));
+      document.body.style.setProperty(
+        '--lyr-halo',
+        String(Math.max(0, 1 - info.bgAlpha)),
+      );
       document.body.classList.toggle('dim-ui', info.bgAlpha < 1);
     }
     if (info.outline !== undefined) {
