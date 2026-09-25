@@ -1,95 +1,802 @@
-# Mini Player
+import { BrowserWindow, screen } from 'electron';
 
-A compact, always-on-top mini player window in the spirit of MiniLyrics: small enough to park in a corner of your desktop, with full playback controls and scrolling synced lyrics (including romanization and translation when enabled).
+import { getSongControls } from '@/providers/song-controls';
+import {
+  registerCallback,
+  SongInfoEvent,
+  type SongInfo,
+} from '@/providers/song-info';
+import { createBackend } from '@/utils';
 
-The mini player and the main window are **exclusive** — opening the mini player minimizes the main window, and restoring the main window closes the mini player — so your music is always controlled from exactly one place. You can switch between them at any time from either side.
+import type { MiniPlayerPluginConfig } from './index';
+import type { BackendContext } from '@/types/contexts';
 
-![Mini player default view](assets/mini-player-default.png)
+const MINI_WIDTH = 340;
+const MINI_HEIGHT = 150;
+const MINI_HEIGHT_LYRICS = 216;
 
-## Getting started
+const pageHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; user-select: none; }
+  html, body { margin: 0; height: 100%; color: #fff;
+    font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; }
+  html { background: transparent; }
+  /* --bg-alpha is clamped to >= 0.01 by the main process: a fully
+     transparent body loses hit-testing on Windows and clicks fall
+     through to the desktop */
+  body { background: rgba(13, 13, 13, var(--bg-alpha, 1)); }
+  body.dim-ui :is(.art, .title, .artist, .controls, .progress-wrap,
+    .toolbar, .drag-handle) { opacity: 0; transition: opacity 0.2s ease; }
+  body.dim-ui:hover :is(.art, .title, .artist, .controls, .progress-wrap,
+    .toolbar, .drag-handle) { opacity: 1; }
+  body { display: flex; flex-direction: column; padding: 10px;
+    -webkit-app-region: drag; position: relative; }
+  .toolbar { position: absolute; top: 4px; right: 6px; display: flex; gap: 2px;
+    -webkit-app-region: no-drag; opacity: 0.55; z-index: 10;
+    pointer-events: auto; }
+  .toolbar:hover { opacity: 1; }
+  .drag-handle { position: absolute; top: 4px; left: 6px; display: flex;
+    align-items: center; justify-content: center; width: 26px; height: 22px;
+    color: #ccc; font-size: 14px; cursor: move; opacity: 0.55; z-index: 10;
+    -webkit-app-region: drag; }
+  .drag-handle:hover { opacity: 1; }
+  .toolbar a { display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 22px; border-radius: 4px; color: #ccc;
+    font-size: 11px; text-decoration: none; }
+  .toolbar a:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+  .row { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+  img.art { width: 78px; height: 78px; border-radius: 6px; object-fit: cover;
+    background: #212121; flex-shrink: 0; }
+  .meta { flex: 1; min-width: 0; display: flex; flex-direction: column;
+    justify-content: center; gap: 2px; }
+  .title { font-size: 14px; font-weight: 600; white-space: nowrap;
+    text-overflow: ellipsis; overflow: hidden; }
+  .artist { font-size: 12px; color: #aaa; white-space: nowrap;
+    text-overflow: ellipsis; overflow: hidden; }
+  .controls { display: flex; gap: 6px; margin-top: 4px;
+    -webkit-app-region: no-drag; }
+  .controls a { display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 30px; border-radius: 4px; color: #fff;
+    font-size: 15px; text-decoration: none; }
+  .controls a:hover { background: rgba(255, 255, 255, 0.12); }
+  .controls a.play { width: 40px; background: rgba(255, 255, 255, 0.1);
+    font-size: 17px; }
+  .lyrics { display: none; flex-direction: column; flex: 1 1 auto;
+    min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 6px 2px 2px;
+    margin-top: 8px;
+    -webkit-app-region: no-drag; }
+  .lyrics::-webkit-scrollbar { display: none; }
+  .lyrics .state { margin: auto; color: #777; font-size: 12px;
+    font-style: italic; }
+  .lyrics .line { padding: 3px 6px; border-radius: 4px; cursor: pointer;
+    opacity: 0.4; transition: opacity 0.3s; }
+  .lyrics .line:hover { background: rgba(255, 255, 255, 0.08); }
+  .lyrics .line.active { opacity: 1; }
+  .lyrics .orig { font-size: calc(12px * var(--lyr-scale, 1)); font-weight: 400;
+    color: var(--lyr-color, #fff);
+    white-space: normal; word-break: break-word;
+    transition: font-size 0.2s ease; }
+  .lyrics .line.active .orig {
+    font-size: calc(12px * var(--lyr-scale, 1) * var(--lyr-em, 1.25));
+    font-weight: 600; }
+  body.em-none .lyrics .line.active .orig { font-weight: 400; }
+  /* hierarchy by transparency only: romaji/translation keep the same
+     color as the lyrics but fade progressively (matches the main
+     player look) */
+  .lyrics .rom { font-size: calc(10px * var(--lyr-scale, 1)); font-style: italic;
+    opacity: 0.75;
+    white-space: normal; word-break: break-word; }
+  .lyrics .trans { font-size: calc(10px * var(--lyr-scale, 1));
+    opacity: 0.55;
+    white-space: normal; word-break: break-word; }
+  /* readability halo: strength is calculated from the background
+     opacity (--lyr-halo = 1 - bg alpha) and its size is em-based so it
+     scales with lyrics size and emphasis; invisible on a solid
+     background */
+  .lyrics .orig, .lyrics .rom, .lyrics .trans {
+    text-shadow:
+      0 calc(0.02em * var(--lyr-halo, 0)) calc(0.06em * var(--lyr-halo, 0))
+        rgba(0, 0, 0, calc(0.95 * var(--lyr-halo, 0))),
+      0 0 calc(0.14em * var(--lyr-halo, 0))
+        rgba(0, 0, 0, calc(0.7 * var(--lyr-halo, 0))); }
+  /* outline width is em-based so it scales with lyrics size and
+     emphasis automatically (12px base * --lyr-scale * --lyr-em) */
+  body.outline .lyrics .orig {
+    -webkit-text-stroke: calc(0.05em) rgba(0, 0, 0, 0.85);
+    paint-order: stroke fill; }
+  body.outline .lyrics .rom {
+    -webkit-text-stroke: calc(0.06em) rgba(0, 0, 0, 0.8);
+    paint-order: stroke fill; }
+  body.outline .lyrics .trans {
+    -webkit-text-stroke: calc(0.06em) rgba(0, 0, 0, 0.8);
+    paint-order: stroke fill; }
+  body.hide-meta .art, body.hide-meta .title, body.hide-meta .artist {
+    display: none; }
+  body.hide-meta .lyrics { padding-top: 26px; }
+  body.hide-lyrics .lyrics { display: none !important; }
+  .progress-wrap { -webkit-app-region: no-drag; cursor: pointer;
+    padding: 6px 0 2px; margin-top: auto; }
+  .progress { height: 4px; border-radius: 2px; background: #3a3a3a;
+    position: relative; }
+  .progress .fill { position: absolute; inset: 0 auto 0 0; width: 0%;
+    border-radius: 2px; background: #ff0033; }
+  .time { display: flex; justify-content: space-between; align-items: center;
+    gap: 8px; font-size: 10px;
+    color: #999; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .time .controls { margin-top: 0; }
+  .time .controls a { width: 32px; height: 28px; font-size: 16px; }
+  .time .duration { margin-left: auto; }
+  body.hide-meta .row { display: none; }
+</style>
+</head>
+<body>
+  <div class="drag-handle" title="Drag to move window">&#10022;</div>
+  <div class="toolbar">
+    <a href="minip://font-dec" title="Smaller lyrics">A&#8722;</a>
+    <a href="minip://font-inc" title="Bigger lyrics">A+</a>
+    <a href="minip://emph-cycle" title="Cycle lyrics emphasis (None/Subtle/Normal/Strong)">&#8645;</a>
+    <a href="minip://toggle-meta" title="Show/hide album art and song info">&#9432;</a>
+    <a href="minip://toggle-lyrics" title="Show/hide lyrics">&#9835;</a>
+    <a href="minip://cycle-opacity" title="Cycle background opacity (100/50/25/0%)">&#9744;</a>
+    <a href="minip://show-main" title="Switch to main player">&#9635;</a>
+  </div>
+  <div class="row">
+    <img class="art" id="art" alt="">
+    <div class="meta" id="metaRow">
+      <div class="title" id="title">YouTube Music</div>
+      <div class="artist" id="artist"></div>
+      <div class="controls">
+        <a href="minip://prev" title="Previous">&#9198;</a>
+        <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
+        <a href="minip://next" title="Next">&#9197;</a>
+      </div>
+    </div>
+  </div>
+  <div class="lyrics" id="lyrics"></div>
+  <div class="progress-wrap">
+    <div class="progress" id="progressBar"><div class="fill" id="fill"></div></div>
+    <div class="time" id="timeRow"><span id="elapsed">0:00</span><span id="duration" class="duration">0:00</span></div>
+  </div>
+<script>
+  const fmt = (s) => {
+    if (!Number.isFinite(s) || s < 0) s = 0;
+    const m = Math.floor(s / 60), r = Math.floor(s % 60);
+    return m + ':' + String(r).padStart(2, '0');
+  };
+  const $ = (id) => document.getElementById(id);
+  let duration = 0;
+  let elapsedSec = 0;
+  let lines = [];
+  let activeIdx = -2;
+  let lastMinHeight = 0;
+  const cssVar = (name, fallback) => {
+    const v = parseFloat(document.body.style.getPropertyValue(name));
+    return Number.isFinite(v) ? v : fallback;
+  };
+  const updateMinHeight = () => {
+    requestAnimationFrame(() => {
+      const row = document.querySelector('.row');
+      const prog = document.querySelector('.progress-wrap');
+      const lyricsEl = $('lyrics');
+      let h = 20; // body padding
+      if (row && row.offsetParent !== null) h += row.offsetHeight;
+      if (prog) h += prog.offsetHeight;
+      const lyricsShown =
+        !document.body.classList.contains('hide-lyrics') &&
+        lyricsEl &&
+        lyricsEl.style.display !== 'none';
+      if (lyricsShown) {
+        const scale = cssVar('--lyr-scale', 1);
+        const em = cssVar('--lyr-em', 1.25);
+        // active line (orig + romaji) + container padding
+        h += 12 * scale * em * 1.45 + 10 * scale * 1.4 * 2 + 14;
+      }
+      h = Math.max(110, Math.round(h));
+      if (h !== lastMinHeight) {
+        lastMinHeight = h;
+        location.href =
+          'minip://minheight/' + h + (lyricsShown ? '' : '/compact');
+      }
+    });
+  };
+  const buildList = () => {
+    const el = $('lyrics');
+    el.innerHTML = '';
+    for (const line of lines) {
+      const div = document.createElement('div');
+      div.className = 'line';
+      div.dataset.time = String(line.timeInMs);
+      const orig = document.createElement('div');
+      orig.className = 'orig';
+      orig.textContent = line.text || '\\u266A';
+      div.appendChild(orig);
+      if (line.romaji) {
+        const rom = document.createElement('div');
+        rom.className = 'rom';
+        rom.textContent = line.romaji;
+        div.appendChild(rom);
+      }
+      if (line.translation) {
+        const trans = document.createElement('div');
+        trans.className = 'trans';
+        trans.textContent = line.translation;
+        div.appendChild(trans);
+      }
+      el.appendChild(div);
+    }
+  };
+  const render = () => {
+    if (!lines.length) return;
+    const t = elapsedSec * 1000;
+    let idx = -1;
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].timeInMs <= t) idx = i; else break;
+    }
+    if (idx === activeIdx) return;
+    activeIdx = idx;
+    const children = $('lyrics').children;
+    for (let i = 0; i < children.length; i++) {
+      children[i].classList.toggle('active', i === idx);
+    }
+    const cur = children[idx];
+    if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  };
+  window.__update = (info) => {
+    if (info.title !== undefined) $('title').textContent = info.title;
+    if (info.artist !== undefined) $('artist').textContent = info.artist;
+    if (info.imageSrc !== undefined) $('art').src = info.imageSrc || '';
+    if (info.isPaused !== undefined) {
+      $('play').innerHTML = info.isPaused ? '&#9654;' : '&#9208;';
+    }
+    if (info.duration !== undefined) {
+      duration = info.duration;
+      $('duration').textContent = fmt(duration);
+    }
+    if (info.lyrics !== undefined) {
+      const lyr = info.lyrics || {};
+      const el = $('lyrics');
+      el.innerHTML = '';
+      activeIdx = -2;
+      el.style.display = 'flex';
+      if (lyr.state === 'lines' && lyr.lines && lyr.lines.length) {
+        lines = lyr.lines;
+        buildList();
+        render();
+      } else {
+        lines = [];
+        const msg = document.createElement('div');
+        msg.className = 'state';
+        msg.textContent =
+          lyr.state === 'loading'
+            ? 'Loading lyrics\\u2026'
+            : 'No lyrics found';
+        el.appendChild(msg);
+      }
+      updateMinHeight();
+    }
+    if (info.scale !== undefined) {
+      document.body.style.setProperty('--lyr-scale', String(info.scale));
+      updateMinHeight();
+    }
+    if (info.em !== undefined) {
+      document.body.style.setProperty('--lyr-em', String(info.em));
+      updateMinHeight();
+    }
+    if (info.emphasis !== undefined) {
+      document.body.classList.toggle(
+        'em-none',
+        info.emphasis === 'none',
+      );
+    }
+    if (info.color !== undefined) {
+      document.body.style.setProperty('--lyr-color', String(info.color));
+    }
+    if (info.hideMeta !== undefined) {
+      const hide = !!info.hideMeta;
+      document.body.classList.toggle('hide-meta', hide);
+      const controls = document.querySelector('.controls');
+      const target = hide ? $('timeRow') : $('metaRow');
+      if (controls && target && controls.parentElement !== target) {
+        if (hide) {
+          target.insertBefore(controls, target.children[1] ?? null);
+        } else {
+          target.appendChild(controls);
+        }
+      }
+      updateMinHeight();
+    }
+    if (info.showLyrics !== undefined) {
+      document.body.classList.toggle('hide-lyrics', !info.showLyrics);
+      updateMinHeight();
+    }
+    if (info.bgAlpha !== undefined) {
+      document.body.style.setProperty('--bg-alpha', String(info.bgAlpha));
+      document.body.style.setProperty(
+        '--lyr-halo',
+        String(Math.max(0, 1 - info.bgAlpha)),
+      );
+      document.body.classList.toggle('dim-ui', info.bgAlpha < 1);
+    }
+    if (info.outline !== undefined) {
+      document.body.classList.toggle('outline', !!info.outline);
+    }
+    if (info.elapsed !== undefined) {
+      elapsedSec = info.elapsed;
+      $('elapsed').textContent = fmt(elapsedSec);
+      $('fill').style.width =
+        duration > 0 ? Math.min(100, (elapsedSec / duration) * 100) + '%' : '0%';
+      render();
+    }
+  };
+  $('progressBar').addEventListener('click', (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    if (duration > 0) location.href = 'minip://seek/' + Math.round(ratio * duration);
+  });
+  $('lyrics').addEventListener('click', (e) => {
+    const line = e.target.closest('.line');
+    if (line) {
+      location.href =
+        'minip://seek/' + Math.round(Number(line.dataset.time) / 1000);
+    }
+  });
+</script>
+</body>
+</html>`;
 
-1. In the menu bar, open **Plugins → Mini Player** and tick **Enabled**.
-2. Click the picture-in-picture icon (▣) in the top bar of the main window, or enable **Plugins → Mini Player → Show mini player**.
-3. The mini player opens and the main window minimizes automatically.
+let miniWindow: BrowserWindow | null = null;
+let mainWindow: BrowserWindow | null = null;
+let miniLyrics: { state: string; lines?: unknown[] } | null = null;
+let songControls: ReturnType<typeof getSongControls> | null = null;
+let getConfigRef:
+  | (() => Promise<MiniPlayerPluginConfig> | MiniPlayerPluginConfig)
+  | null = null;
+let setConfigRef:
+  | ((config: Partial<Omit<MiniPlayerPluginConfig, 'enabled'>>) => unknown)
+  | null = null;
+let lastInfo: SongInfo | null = null;
+let lastElapsed = 0;
+let lastElapsedAt = Date.now();
+let playing = false;
+let showLyricsAreaRef = true;
+let lastMinHeight = 110;
+let progressTimer: ReturnType<typeof setInterval> | null = null;
+let mainWindowMinimizedByMini = false;
+const unregisterSongInfo = new Set<() => void>();
+let runToken = 0;
+let backendIpc: BackendContext<MiniPlayerPluginConfig>['ipc'] | null = null;
+let saveBoundsTimer: ReturnType<typeof setTimeout> | null = null;
 
-Lyrics come from the **Synced Lyrics** plugin — enable it too (**Plugins → Synced Lyrics → Enabled**) if you want lyrics in the mini player. Romanization and translation follow that plugin's settings.
+const onMiniLyrics = (payload: { state: string; lines?: unknown[] }) => {
+  miniLyrics = payload;
+  push({ lyrics: payload });
+  resizeForLyrics();
+};
 
-## Features
+const getElapsed = () => {
+  if (!playing) return lastElapsed;
+  const delta = (Date.now() - lastElapsedAt) / 1000;
+  return lastElapsed + delta;
+};
 
-### Synced lyrics, romanization and translation
+const push = (payload: Record<string, unknown>) => {
+  if (!miniWindow || miniWindow.isDestroyed()) return;
+  miniWindow.webContents
+    .executeJavaScript(`window.__update(${JSON.stringify(payload)})`, true)
+    .catch(() => {});
+};
 
-When a song has synced lyrics, they scroll automatically and the current line stays centered. Click any line to jump to that point in the song. Romanized lyrics (e.g. romanized Hangul) and translations are shown under each line when enabled in the Synced Lyrics plugin settings.
+const pushAll = () => {
+  if (!lastInfo) return;
+  push({
+    title: lastInfo.title,
+    artist: lastInfo.artist,
+    imageSrc: lastInfo.imageSrc ?? '',
+    isPaused: !playing,
+    duration: lastInfo.songDuration,
+    elapsed: getElapsed(),
+  });
+  if (miniLyrics) {
+    push({ lyrics: miniLyrics });
+  }
+};
 
-![Lyrics view](assets/mini-player-lyrics.png)
+const resizeForLyrics = () => {
+  if (!miniWindow || miniWindow.isDestroyed()) return;
+  const [width, height] = miniWindow.getSize();
+  const target =
+    miniLyrics && showLyricsAreaRef ? MINI_HEIGHT_LYRICS : MINI_HEIGHT;
+  // only snap when sitting at the minimum height; user-resized
+  // windows keep their height
+  if (height <= lastMinHeight + 1 && height !== target) {
+    miniWindow.setSize(width, target);
+  }
+};
 
-### Lyrics emphasis
+const clampScale = (value: number) =>
+  Math.min(1.8, Math.max(0.7, Math.round(value * 10) / 10));
 
-The current line can be rendered larger than the rest. Cycle presets with the `⇕` toolbar button (None → Subtle → Normal → Strong) or pick one from **Plugins → Mini Player → Lyrics emphasis**. Changing emphasis never resizes the window unless it is at its minimum height.
+const emphasisMultipliers: Record<string, number> = {
+  none: 1,
+  subtle: 1.1,
+  normal: 1.25,
+  strong: 1.4,
+};
 
-### Lyrics size and color
+const resolveOpacity = (config: {
+  backgroundOpacity?: number;
+  transparentBg?: boolean;
+}) =>
+  // 0.1 floor: the lowest level keeps a faint tint so the window
+  // never becomes fully invisible
+  Math.max(0.1, config.backgroundOpacity ?? (config.transparentBg ? 0.1 : 1));
 
-Use the `A−` / `A+` toolbar buttons to scale lyrics between 70% and 180%. The text color can be changed under **Lyrics color**: White, Gold, Yellow, Cyan, Light Blue, Green, Red or Pink.
+const pushStyle = (config: MiniPlayerPluginConfig) => {
+  push({
+    scale: config.lyricsScale ?? 1,
+    hideMeta: config.hideMeta ?? false,
+    showLyrics: config.showLyricsArea ?? true,
+    bgAlpha: resolveOpacity(config),
+    outline: config.lyricsOutline ?? false,
+    color: config.lyricsColor ?? '#ffffff',
+    em: emphasisMultipliers[config.lyricsEmphasis ?? 'normal'] ?? 1.25,
+    emphasis: config.lyricsEmphasis ?? 'normal',
+  });
+};
 
-### Hide album art and song info
+const onMainRestored = () => {
+  // exclusive windows: main window restored -> close mini player
+  if (miniWindow) {
+    setConfigRef?.({ visible: false });
+  }
+};
 
-The `ⓘ` toolbar button hides the album art, title and artist. The playback controls then move to the bottom of the window, between the elapsed and remaining time, so the lyrics get the whole window.
+const stopProgressTimer = () => {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+};
 
-![Hide album art and song info](assets/mini-player-hide-meta.png)
+const restoreMainWindow = () => {
+  if (!mainWindowMinimizedByMini) return;
+  mainWindowMinimizedByMini = false;
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isMinimized()) {
+    mainWindow.restore();
+  }
+};
 
-### Adjustable background opacity ("flying lyrics")
+const closeWindow = () => {
+  stopProgressTimer();
+  const win = miniWindow;
+  miniWindow = null;
+  if (win && !win.isDestroyed()) {
+    win.destroy();
+  }
+  restoreMainWindow();
+};
 
-The `☐` toolbar button cycles the background opacity (100% → 50% → 25% → 0%), or pick an exact level under **Plugins → Mini Player → Background opacity** (100% / 75% / 50% / 25% / 0%). At 0% the lyrics appear to float on your desktop. Below 100%, everything except the lyrics fades out while the mouse is away and fades back in when you hover over the window. A dark readability halo is calculated around the lyrics automatically — the more transparent the background, the stronger the halo — so the text stays readable over any desktop content.
+const createWindow = async (config: MiniPlayerPluginConfig) => {
+  if (!songControls) return;
+  showLyricsAreaRef = config.showLyricsArea ?? true;
 
-### Lyrics outline
+  // clamp saved bounds into a currently visible display so the mini
+  // player can never come back stranded on a disconnected monitor
+  const saved = config.bounds;
+  const displays = screen.getAllDisplays();
+  const workArea =
+    displays.find(
+      (d) =>
+        saved &&
+        saved.x >= d.workArea.x - saved.width + 40 &&
+        saved.x < d.workArea.x + d.workArea.width - 40 &&
+        saved.y >= d.workArea.y - saved.height + 40 &&
+        saved.y < d.workArea.y + d.workArea.height - 40,
+    )?.workArea ?? screen.getPrimaryDisplay().workArea;
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
+  const bounds = saved
+    ? {
+        width: clamp(saved.width, 280, 1200),
+        height: clamp(saved.height, 110, 1200),
+        x: clamp(
+          saved.x,
+          workArea.x - saved.width + 60,
+          workArea.x + workArea.width - 60,
+        ),
+        y: clamp(saved.y, workArea.y, workArea.y + workArea.height - 60),
+      }
+    : undefined;
 
-Enable **Plugins → Mini Player → Lyrics outline** to draw a dark outline around the lyrics. The outline width is calculated from the font size (em-based), so it automatically scales with the lyrics size buttons and the emphasis level — the current line gets a proportionally thicker outline too.
+  const win = new BrowserWindow({
+    width: bounds?.width ?? MINI_WIDTH,
+    height: bounds?.height ?? (miniLyrics ? MINI_HEIGHT_LYRICS : MINI_HEIGHT),
+    x: bounds?.x,
+    y: bounds?.y,
+    frame: false,
+    resizable: true,
+    minWidth: 280,
+    minHeight: 110,
+    maximizable: false,
+    fullscreenable: false,
+    transparent: true,
+    backgroundColor: '#00000000',
+    alwaysOnTop: config.alwaysOnTop ?? true,
+    show: false,
+    title: 'Mini Player',
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+  miniWindow = win;
 
-### Lyrics area toggle
+  win.removeMenu();
 
-The `♫` toolbar button collapses the lyrics area for a minimal controller — the window shrinks to fit and the minimum height adapts automatically. Toggle it back at any time.
+  // persist window size/position (debounced) across restarts
+  const saveBounds = () => {
+    if (saveBoundsTimer) clearTimeout(saveBoundsTimer);
+    saveBoundsTimer = setTimeout(() => {
+      saveBoundsTimer = null;
+      if (miniWindow === win && !win.isDestroyed()) {
+        const [x, y] = win.getPosition();
+        const [width, height] = win.getSize();
+        setConfigRef?.({ bounds: { x, y, width, height } });
+      }
+    }, 500);
+  };
+  win.on('resize', saveBounds);
+  win.on('move', saveBounds);
 
-![Compact mode without lyrics](assets/mini-player-compact.png)
+  const controls = songControls;
+  const actions: Record<string, () => void> = {
+    'minip://prev': controls.previous,
+    'minip://next': controls.next,
+    'minip://toggle': controls.playPause,
+    'minip://show-main': () => {
+      if (!mainWindow) return;
+      if (mainWindow.isMinimized()) {
+        mainWindow.restore();
+      } else {
+        mainWindow.show();
+      }
+      mainWindow.focus();
+      // close the mini player via config so both windows never stay open
+      setConfigRef?.({ visible: false });
+    },
+    'minip://font-inc': () => {
+      Promise.resolve(getConfigRef?.() ?? { lyricsScale: 1 }).then((conf) => {
+        setConfigRef?.({
+          lyricsScale: clampScale((conf.lyricsScale ?? 1) + 0.1),
+        });
+      });
+    },
+    'minip://font-dec': () => {
+      Promise.resolve(getConfigRef?.() ?? { lyricsScale: 1 }).then((conf) => {
+        setConfigRef?.({
+          lyricsScale: clampScale((conf.lyricsScale ?? 1) - 0.1),
+        });
+      });
+    },
+    'minip://toggle-meta': () => {
+      Promise.resolve(getConfigRef?.() ?? { hideMeta: false }).then((conf) => {
+        setConfigRef?.({ hideMeta: !(conf.hideMeta ?? false) });
+      });
+    },
+    'minip://toggle-lyrics': () => {
+      Promise.resolve(getConfigRef?.() ?? { showLyricsArea: true }).then(
+        (conf) => {
+          setConfigRef?.({ showLyricsArea: !(conf.showLyricsArea ?? true) });
+        },
+      );
+    },
+    'minip://emph-cycle': () => {
+      Promise.resolve(getConfigRef?.() ?? { lyricsEmphasis: 'normal' }).then(
+        (conf) => {
+          const order: MiniPlayerPluginConfig['lyricsEmphasis'][] = [
+            'none',
+            'subtle',
+            'normal',
+            'strong',
+          ];
+          const current = conf.lyricsEmphasis ?? 'normal';
+          const next =
+            order[(order.indexOf(current) + 1) % order.length] ?? 'normal';
+          setConfigRef?.({ lyricsEmphasis: next });
+        },
+      );
+    },
+    'minip://cycle-opacity': () => {
+      Promise.resolve(getConfigRef?.() ?? { backgroundOpacity: 1 }).then(
+        (conf) => {
+          // lowest step keeps a faint tint so the window never becomes
+          // fully invisible
+          const steps = [1, 0.5, 0.25, 0.1];
+          const current = resolveOpacity(conf);
+          const idx = steps.findIndex((s) => Math.abs(s - current) < 0.001);
+          const next = steps[(idx + 1) % steps.length] ?? 1;
+          setConfigRef?.({ backgroundOpacity: next });
+        },
+      );
+    },
+  };
 
-### Always on top
+  const handleAction = (url: string) => {
+    if (actions[url]) {
+      actions[url]();
+      return;
+    }
+    if (url.startsWith('minip://seek/')) {
+      const seconds = Number(url.slice('minip://seek/'.length));
+      if (Number.isFinite(seconds) && seconds >= 0) {
+        controls.seekTo(seconds);
+      }
+      return;
+    }
+    if (url.startsWith('minip://minheight/')) {
+      const rest = url.slice('minip://minheight/'.length);
+      const compact = rest.endsWith('/compact');
+      const height = Number(compact ? rest.replace(/\/compact$/, '') : rest);
+      if (Number.isFinite(height) && height > 0 && miniWindow) {
+        const current = miniWindow;
+        const [, currentHeight] = current.getSize();
+        const wasAtMinimum = currentHeight <= lastMinHeight + 1;
+        const rounded = Math.round(height);
+        current.setMinimumSize(280, rounded);
+        lastMinHeight = rounded;
+        // compact flag = lyrics explicitly hidden: always snap down so
+        // no blank area is left behind; otherwise only snap when the
+        // window was sitting at its minimum (user-resized windows keep
+        // their height)
+        if (compact) {
+          if (currentHeight > rounded) {
+            current.setSize(current.getSize()[0], rounded);
+          }
+        } else if (wasAtMinimum) {
+          resizeForLyrics();
+        }
+      }
+    }
+  };
 
-Enabled by default: the mini player stays above all other windows. Turn it off with **Plugins → Mini Player → Always on top** if you prefer a normal window.
+  win.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault();
+    handleAction(url);
+  });
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    handleAction(url);
+    return { action: 'deny' };
+  });
 
-### Window management
+  win.on('closed', () => {
+    if (miniWindow !== win) return;
+    miniWindow = null;
+    if (saveBoundsTimer) {
+      clearTimeout(saveBoundsTimer);
+      saveBoundsTimer = null;
+    }
+    stopProgressTimer();
+    restoreMainWindow();
+    setConfigRef?.({ visible: false });
+  });
 
-The frameless window is moved by its `✥` drag handle (top left) and can be resized from any edge. The minimum height always adapts so the toolbar, song info, controls and current lyric line remain visible. All settings — size, colors, emphasis, toggles — persist across restarts.
+  try {
+    await win.loadURL(
+      `data:text/html;charset=utf-8,${encodeURIComponent(pageHtml)}`,
+    );
+  } catch {
+    if (miniWindow === win) {
+      miniWindow = null;
+      win.destroy();
+      setConfigRef?.({ visible: false });
+    }
+    return;
+  }
 
-## Toolbar reference
+  if (miniWindow !== win || win.isDestroyed()) return;
+  win.show();
+  // exclusive windows: mini player visible -> minimize main window
+  if (mainWindow && !mainWindow.isMinimized()) {
+    mainWindow.minimize();
+    mainWindowMinimizedByMini = true;
+  }
+  progressTimer ??= setInterval(() => {
+    if (lastInfo) push({ elapsed: getElapsed() });
+  }, 1000);
+  pushAll();
+  pushStyle(config);
+};
 
-| Icon | Action |
-| ---- | ------ |
-| `✥` | Drag to move the window |
-| `A−` / `A+` | Smaller / bigger lyrics (70% – 180%) |
-| `⇕` | Cycle lyrics emphasis (None / Subtle / Normal / Strong) |
-| `ⓘ` | Show / hide album art and song info |
-| `♫` | Show / hide the lyrics area |
-| `☐` | Cycle background opacity (100 / 50 / 25 / 0%) |
-| `▣` | Switch to the main player |
+export const backend = createBackend({
+  start({
+    window,
+    getConfig,
+    setConfig,
+    ipc,
+  }: BackendContext<MiniPlayerPluginConfig>) {
+    const token = ++runToken;
+    songControls = getSongControls(window);
+    mainWindow = window;
+    getConfigRef = getConfig;
+    setConfigRef = setConfig;
+    backendIpc = ipc;
 
-The toolbar sits in the top right corner. Its icons are slightly dimmed and brighten on hover; when the background opacity is below 100% it is fully hidden until you hover over the window. The bottom row has previous / play-pause / next buttons and a seek bar.
+    window.on('restore', onMainRestored);
 
-## Menu reference
+    ipc.on('synced-lyrics:mini-lyrics', onMiniLyrics);
 
-All settings live under **Plugins → Mini Player** in the main window:
+    unregisterSongInfo.add(
+      registerCallback((songInfo, event) => {
+        lastInfo = songInfo;
 
-| Setting | Description |
-| ------- | ----------- |
-| Show mini player | Open or close the mini player window |
-| Always on top | Keep the mini player above all other windows |
-| Hide album art and song info | Hide art, title and artist (playback buttons stay) |
-| Show lyrics | Show or hide the lyrics area |
-| Background opacity | 100% / 75% / 50% / 25% / 0%; below 100% the UI reveals on hover |
-| Lyrics outline | Dark outline around lyrics, width scales with lyrics size |
-| Lyrics emphasis | How much larger the current line is: None / Subtle / Normal / Strong |
-| Lyrics color | Text color of the lyrics: White, Gold, Yellow, Cyan, Light Blue, Green, Red, Pink |
+        if (event === SongInfoEvent.PlayOrPaused) {
+          playing = !songInfo.isPaused;
+          lastElapsed = songInfo.elapsedSeconds ?? lastElapsed;
+          lastElapsedAt = Date.now();
+          push({ isPaused: !playing });
+        } else if (event === SongInfoEvent.VideoSrcChanged) {
+          playing = !songInfo.isPaused;
+          lastElapsed = songInfo.elapsedSeconds ?? 0;
+          lastElapsedAt = Date.now();
+          miniLyrics = { state: 'loading' };
+          pushAll();
+        } else if (event === SongInfoEvent.TimeChanged) {
+          lastElapsed = songInfo.elapsedSeconds ?? lastElapsed;
+          lastElapsedAt = Date.now();
+          push({ elapsed: lastElapsed });
+        }
+      }),
+    );
 
-## Tips & troubleshooting
+    Promise.resolve(getConfig()).then((config) => {
+      // ignore a start that raced a stop/disable in between
+      if (token === runToken && config.visible) {
+        createWindow(config);
+      }
+    });
+  },
 
-- **No lyrics in the mini player** — make sure the Synced Lyrics plugin is enabled and the current song actually has synced (time-coded) lyrics. The window shows *Loading lyrics…* while fetching and *No lyrics found* otherwise.
-- **Romanization or translation missing** — these follow the Synced Lyrics plugin settings; enable them there.
-- **Transparent background** requires a compositor on Linux (enabled by default on most desktops); on Windows and macOS it works out of the box.
-- **The window won't shrink further** — you have reached the adaptive minimum height, which always keeps the current lyric line and controls visible. Hide the lyrics area (`♫`) or the song info (`ⓘ`) to go smaller.
+  onConfigChange(newConfig) {
+    const lyricsAreaToggled =
+      showLyricsAreaRef !== (newConfig.showLyricsArea ?? true);
+    showLyricsAreaRef = newConfig.showLyricsArea ?? true;
+
+    if (newConfig.visible && !miniWindow) {
+      createWindow(newConfig);
+    } else if (!newConfig.visible && miniWindow) {
+      closeWindow();
+    }
+
+    if (miniWindow && !miniWindow.isDestroyed()) {
+      miniWindow.setAlwaysOnTop(newConfig.alwaysOnTop ?? true);
+    }
+
+    if (lyricsAreaToggled) {
+      resizeForLyrics();
+    }
+
+    pushStyle(newConfig);
+  },
+
+  stop() {
+    runToken++;
+    for (const unregister of unregisterSongInfo) unregister();
+    unregisterSongInfo.clear();
+    backendIpc?.removeListener('synced-lyrics:mini-lyrics', onMiniLyrics);
+    backendIpc = null;
+    mainWindow?.removeListener('restore', onMainRestored);
+    closeWindow();
+    mainWindow = null;
+    songControls = null;
+    getConfigRef = null;
+    setConfigRef = null;
+    lastInfo = null;
+    miniLyrics = null;
+    lastMinHeight = 110;
+  },
+});

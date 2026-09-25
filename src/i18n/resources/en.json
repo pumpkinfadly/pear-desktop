@@ -661,9 +661,9 @@
           "values": {
             "solid": "100%",
             "fifty": "50%",
-            "invisible": "0% (invisible)",
             "seventy-five": "75%",
-            "twenty-five": "25%"
+            "twenty-five": "25%",
+            "ten": "10% (near invisible)"
           }
         },
         "lyrics-outline": {

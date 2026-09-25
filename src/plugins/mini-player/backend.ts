@@ -84,13 +84,14 @@ const pageHtml = `<!DOCTYPE html>
     font-size: calc(12px * var(--lyr-scale, 1) * var(--lyr-em, 1.25));
     font-weight: 600; }
   body.em-none .lyrics .line.active .orig { font-weight: 400; }
-  /* romaji and translation derive from the lyrics color: same hue,
-     softened via color-mix so hierarchy stays (orig strongest) */
+  /* hierarchy by transparency only: romaji/translation keep the same
+     color as the lyrics but fade progressively (matches the main
+     player look) */
   .lyrics .rom { font-size: calc(10px * var(--lyr-scale, 1)); font-style: italic;
-    color: color-mix(in srgb, var(--lyr-color, #fff) 72%, #808080);
+    opacity: 0.75;
     white-space: normal; word-break: break-word; }
   .lyrics .trans { font-size: calc(10px * var(--lyr-scale, 1));
-    color: color-mix(in srgb, var(--lyr-color, #fff) 45%, #808080);
+    opacity: 0.55;
     white-space: normal; word-break: break-word; }
   /* readability halo: strength is calculated from the background
      opacity (--lyr-halo = 1 - bg alpha) and its size is em-based so it
@@ -430,7 +431,9 @@ const resolveOpacity = (config: {
   backgroundOpacity?: number;
   transparentBg?: boolean;
 }) =>
-  Math.max(0.01, config.backgroundOpacity ?? (config.transparentBg ? 0.01 : 1));
+  // 0.1 floor: the lowest level keeps a faint tint so the window
+  // never becomes fully invisible
+  Math.max(0.1, config.backgroundOpacity ?? (config.transparentBg ? 0.1 : 1));
 
 const pushStyle = (config: MiniPlayerPluginConfig) => {
   push({
@@ -611,7 +614,9 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
     'minip://cycle-opacity': () => {
       Promise.resolve(getConfigRef?.() ?? { backgroundOpacity: 1 }).then(
         (conf) => {
-          const steps = [1, 0.5, 0.25, 0.01];
+          // lowest step keeps a faint tint so the window never becomes
+          // fully invisible
+          const steps = [1, 0.5, 0.25, 0.1];
           const current = resolveOpacity(conf);
           const idx = steps.findIndex((s) => Math.abs(s - current) < 0.001);
           const next = steps[(idx + 1) % steps.length] ?? 1;
