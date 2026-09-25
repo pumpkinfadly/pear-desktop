@@ -84,10 +84,13 @@ const pageHtml = `<!DOCTYPE html>
     font-size: calc(12px * var(--lyr-scale, 1) * var(--lyr-em, 1.25));
     font-weight: 600; }
   body.em-none .lyrics .line.active .orig { font-weight: 400; }
+  /* romaji and translation derive from the lyrics color: same hue,
+     softened via color-mix so hierarchy stays (orig strongest) */
   .lyrics .rom { font-size: calc(10px * var(--lyr-scale, 1)); font-style: italic;
-    color: #bbb;
+    color: color-mix(in srgb, var(--lyr-color, #fff) 72%, #808080);
     white-space: normal; word-break: break-word; }
-  .lyrics .trans { font-size: calc(10px * var(--lyr-scale, 1)); color: #888;
+  .lyrics .trans { font-size: calc(10px * var(--lyr-scale, 1));
+    color: color-mix(in srgb, var(--lyr-color, #fff) 45%, #808080);
     white-space: normal; word-break: break-word; }
   /* readability halo: strength is calculated from the background
      opacity (--lyr-halo = 1 - bg alpha) and its size is em-based so it
