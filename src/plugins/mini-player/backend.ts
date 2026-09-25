@@ -1,4 +1,4 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, screen } from 'electron';
 
 import { getSongControls } from '@/providers/song-controls';
 import {
@@ -478,12 +478,39 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
   if (!songControls) return;
   showLyricsAreaRef = config.showLyricsArea ?? true;
 
+  // clamp saved bounds into a currently visible display so the mini
+  // player can never come back stranded on a disconnected monitor
+  const saved = config.bounds;
+  const displays = screen.getAllDisplays();
+  const workArea =
+    displays.find(
+      (d) =>
+        saved &&
+        saved.x >= d.workArea.x - saved.width + 40 &&
+        saved.x < d.workArea.x + d.workArea.width - 40 &&
+        saved.y >= d.workArea.y - saved.height + 40 &&
+        saved.y < d.workArea.y + d.workArea.height - 40,
+    )?.workArea ?? screen.getPrimaryDisplay().workArea;
+  const clamp = (value: number, min: number, max: number) =>
+    Math.min(max, Math.max(min, value));
+  const bounds = saved
+    ? {
+        width: clamp(saved.width, 280, 1200),
+        height: clamp(saved.height, 110, 1200),
+        x: clamp(
+          saved.x,
+          workArea.x - saved.width + 60,
+          workArea.x + workArea.width - 60,
+        ),
+        y: clamp(saved.y, workArea.y, workArea.y + workArea.height - 60),
+      }
+    : undefined;
+
   const win = new BrowserWindow({
-    width: config.bounds?.width ?? MINI_WIDTH,
-    height:
-      config.bounds?.height ?? (miniLyrics ? MINI_HEIGHT_LYRICS : MINI_HEIGHT),
-    x: config.bounds?.x,
-    y: config.bounds?.y,
+    width: bounds?.width ?? MINI_WIDTH,
+    height: bounds?.height ?? (miniLyrics ? MINI_HEIGHT_LYRICS : MINI_HEIGHT),
+    x: bounds?.x,
+    y: bounds?.y,
     frame: false,
     resizable: true,
     minWidth: 280,
