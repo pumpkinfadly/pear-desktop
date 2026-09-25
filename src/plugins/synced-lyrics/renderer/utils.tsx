@@ -310,3 +310,16 @@ export const translateLine = async (
     return null;
   }
 };
+
+// Scripts where machine translation adds value; latin-only lines are
+// skipped so mostly-latin songs never hit the translate endpoint
+const TRANSLATABLE_SCRIPTS =
+  /[\u0400-\u04FF\u0500-\u052F\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u0900-\u097F\u0E00-\u0E7F\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF]/;
+
+export const translateIfNeeded = async (
+  line: string,
+  target: string,
+): Promise<string | undefined> =>
+  TRANSLATABLE_SCRIPTS.test(line)
+    ? ((await translateLine(line, target)) ?? undefined)
+    : undefined;

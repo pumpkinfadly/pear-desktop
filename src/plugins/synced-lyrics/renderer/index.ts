@@ -6,7 +6,7 @@ import { waitForElement } from '@/utils/wait-for-element';
 import { disposeReactiveRoot, reactiveOwner } from './reactive-root';
 import { config, setConfig, setCurrentTime } from './renderer';
 import { currentLyrics, fetchLyrics } from './store';
-import { romanize, selectors, tabStates, translateLine } from './utils';
+import { romanize, selectors, tabStates, translateIfNeeded } from './utils';
 
 import type { SyncedLyricsPluginConfig } from '../types';
 import type { SongInfo } from '@/providers/song-info';
@@ -115,35 +115,49 @@ export const renderer = createRenderer<
         }
 
         const enrich = async () => {
-          const out = [];
-          for (const line of lines) {
-            let romaji: string | undefined;
-            let translation: string | undefined;
+          const out: {
+            timeInMs: number;
+            text: string;
+            romaji?: string;
+            translation?: string;
+          }[] = lines.map((line) => ({
+            timeInMs: line.timeInMs,
+            text: line.text,
+          }));
 
-            if (conf?.romanization) {
-              try {
-                const result = await romanize(line.text);
-                if (result && result !== line.text) romaji = result;
-              } catch {
-                romaji = undefined;
+          // bounded concurrency pool: keeps lyric order while running
+          // several romanize/translate tasks in parallel
+          const CONCURRENCY = 4;
+          let cursor = 0;
+          const worker = async () => {
+            while (cursor < lines.length) {
+              const i = cursor++;
+              const line = lines[i];
+              const entry = out[i];
+              if (!line || !entry) continue;
+
+              if (conf?.romanization) {
+                try {
+                  const result = await romanize(line.text);
+                  if (result && result !== line.text) entry.romaji = result;
+                } catch {
+                  entry.romaji = undefined;
+                }
               }
-            }
 
-            if (conf?.translation) {
-              translation =
-                (await translateLine(
+              if (conf?.translation) {
+                entry.translation = await translateIfNeeded(
                   line.text,
                   conf.translationLanguage ?? 'en',
-                )) ?? undefined;
+                );
+              }
             }
-
-            out.push({
-              timeInMs: line.timeInMs,
-              text: line.text,
-              romaji,
-              translation,
-            });
-          }
+          };
+          await Promise.all(
+            Array.from({ length: Math.min(CONCURRENCY, lines.length) }, () =>
+              worker(),
+            ),
+          );
           send({ state: 'lines', lines: out });
         };
         enrich();
