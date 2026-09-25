@@ -194,7 +194,8 @@ const pageHtml = `<!DOCTYPE html>
       h = Math.max(110, Math.round(h));
       if (h !== lastMinHeight) {
         lastMinHeight = h;
-        location.href = 'minip://minheight/' + h;
+        location.href =
+          'minip://minheight/' + h + (lyricsShown ? '' : '/compact');
       }
     });
   };
@@ -603,7 +604,9 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
       return;
     }
     if (url.startsWith('minip://minheight/')) {
-      const height = Number(url.slice('minip://minheight/'.length));
+      const rest = url.slice('minip://minheight/'.length);
+      const compact = rest.endsWith('/compact');
+      const height = Number(compact ? rest.replace(/\/compact$/, '') : rest);
       if (Number.isFinite(height) && height > 0 && miniWindow) {
         const current = miniWindow;
         const [, currentHeight] = current.getSize();
@@ -611,9 +614,15 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
         const rounded = Math.round(height);
         current.setMinimumSize(280, rounded);
         lastMinHeight = rounded;
-        // only snap height when window was sitting at its minimum;
-        // user-resized windows keep their height
-        if (wasAtMinimum) {
+        // compact flag = lyrics explicitly hidden: always snap down so
+        // no blank area is left behind; otherwise only snap when the
+        // window was sitting at its minimum (user-resized windows keep
+        // their height)
+        if (compact) {
+          if (currentHeight > rounded) {
+            current.setSize(current.getSize()[0], rounded);
+          }
+        } else if (wasAtMinimum) {
           resizeForLyrics();
         }
       }
