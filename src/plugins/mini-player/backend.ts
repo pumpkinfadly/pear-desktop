@@ -431,9 +431,8 @@ const resolveOpacity = (config: {
   backgroundOpacity?: number;
   transparentBg?: boolean;
 }) =>
-  // 0.1 floor: the lowest level keeps a faint tint so the window
-  // never becomes fully invisible
-  Math.max(0.1, config.backgroundOpacity ?? (config.transparentBg ? 0.1 : 1));
+  // 1% floor: a fully transparent body loses hit-testing on Windows
+  Math.max(0.01, config.backgroundOpacity ?? (config.transparentBg ? 0.01 : 1));
 
 const pushStyle = (config: MiniPlayerPluginConfig) => {
   push({
@@ -616,7 +615,7 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
         (conf) => {
           // lowest step keeps a faint tint so the window never becomes
           // fully invisible
-          const steps = [1, 0.5, 0.25, 0.1];
+          const steps = [1, 0.5, 0.25, 0];
           const current = resolveOpacity(conf);
           const idx = steps.findIndex((s) => Math.abs(s - current) < 0.001);
           const next = steps[(idx + 1) % steps.length] ?? 1;

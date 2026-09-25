@@ -9,7 +9,7 @@ const backgroundOpacities = [
   { value: 0.75, key: 'seventy-five' },
   { value: 0.5, key: 'fifty' },
   { value: 0.25, key: 'twenty-five' },
-  { value: 0.1, key: 'ten' },
+  { value: 0, key: 'invisible' },
 ];
 
 const lyricsColors = [

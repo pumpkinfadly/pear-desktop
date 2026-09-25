@@ -663,7 +663,7 @@
             "fifty": "50%",
             "seventy-five": "75%",
             "twenty-five": "25%",
-            "ten": "10% (near invisible)"
+            "invisible": "0% (invisible)"
           }
         },
         "lyrics-outline": {
