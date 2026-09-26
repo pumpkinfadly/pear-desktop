@@ -130,10 +130,11 @@ const pageHtml = `<!DOCTYPE html>
     gap: 8px; font-size: 10px;
     color: #999; margin-top: 6px; font-variant-numeric: tabular-nums; }
   .time .controls a { width: 32px; height: 28px; font-size: 16px; }
-  .time .duration { margin-left: auto; }
-  .vol { display: flex; align-items: center; gap: 4px;
+  .time .duration { margin-left: 2px; }
+  .vol { display: flex; align-items: center; gap: 5px; margin-left: auto;
     -webkit-app-region: no-drag; color: #999; }
-  .vol span { font-size: 13px; }
+  .vol span { font-size: 12px; line-height: 1;
+    font-family: 'Segoe UI Symbol', sans-serif; }
   .vol input { width: 76px; height: 4px; accent-color: #ff0033; }
   body.hide-meta .row { display: none; }
 </style>
@@ -167,7 +168,7 @@ const pageHtml = `<!DOCTYPE html>
         <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
         <a href="minip://next" title="Next">&#9197;</a>
       </div>
-      <div class="vol" id="volBox"><span>&#128266;</span><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
+      <div class="vol" id="volBox"><span>&#x1F509;</span><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
       <span id="duration" class="duration">0:00</span>
     </div>
   </div>
