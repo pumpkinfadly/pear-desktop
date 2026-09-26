@@ -133,8 +133,8 @@ const pageHtml = `<!DOCTYPE html>
   .time .duration { margin-left: 2px; }
   .vol { display: flex; align-items: center; gap: 5px; margin-left: auto;
     -webkit-app-region: no-drag; color: #999; }
-  .vol span { font-size: 12px; line-height: 1;
-    font-family: 'Segoe UI Symbol', sans-serif; }
+  .vol svg { width: 13px; height: 13px; display: block;
+    fill: currentColor; }
   .vol input { width: 76px; height: 4px; accent-color: #ff0033; }
   body.hide-meta .row { display: none; }
 </style>
@@ -168,7 +168,7 @@ const pageHtml = `<!DOCTYPE html>
         <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
         <a href="minip://next" title="Next">&#9197;</a>
       </div>
-      <div class="vol" id="volBox"><span>&#x1F509;</span><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
+      <div class="vol" id="volBox"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
       <span id="duration" class="duration">0:00</span>
     </div>
   </div>
