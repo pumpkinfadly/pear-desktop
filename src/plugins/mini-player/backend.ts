@@ -126,7 +126,7 @@ const pageHtml = `<!DOCTYPE html>
   .progress { height: 3px; border-radius: 2px; background: #2c2c2c;
     position: relative; }
   .progress .fill { position: absolute; inset: 0 auto 0 0; width: 0%;
-    border-radius: 2px; background: #8c8c8c; }
+    border-radius: 2px; background: #ff0033; }
   .time { display: flex; justify-content: space-between; align-items: center;
     gap: 8px; font-size: 10px;
     color: #999; margin-top: 5px; font-variant-numeric: tabular-nums; }
