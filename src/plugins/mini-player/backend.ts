@@ -167,7 +167,7 @@ const pageHtml = `<!DOCTYPE html>
       <span id="elapsed">0:00</span>
       <div class="controls">
         <a href="minip://prev" title="Previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></a>
-        <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
+        <a href="minip://toggle" class="play" id="play" title="Play/Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></a>
         <a href="minip://next" title="Next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></a>
       </div>
       <div class="vol" id="volBox"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
@@ -278,9 +278,11 @@ const pageHtml = `<!DOCTYPE html>
     }
     if (info.imageSrc !== undefined) $('art').src = info.imageSrc || '';
     if (info.isPaused !== undefined) {
+      // button shows the NEXT action, matching the main player:
+      // paused -> play triangle, playing -> pause bars
       $('play').innerHTML = info.isPaused
-        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zm5 0h3v14h-3z"/></svg>'
-        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zm5 0h3v14h-3z"/></svg>';
     }
     if (info.duration !== undefined) {
       duration = info.duration;
