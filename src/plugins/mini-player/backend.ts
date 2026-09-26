@@ -130,6 +130,11 @@ const pageHtml = `<!DOCTYPE html>
   .time .controls { margin-top: 0; }
   .time .controls a { width: 32px; height: 28px; font-size: 16px; }
   .time .duration { margin-left: auto; }
+  .vol { display: flex; align-items: center; gap: 4px; margin-left: auto;
+    -webkit-app-region: no-drag; color: #999; }
+  .vol.has-controls { margin-left: 0; }
+  .vol span { font-size: 13px; }
+  .vol input { width: 76px; height: 4px; accent-color: #ff0033; }
   body.hide-meta .row { display: none; }
 </style>
 </head>
@@ -159,7 +164,7 @@ const pageHtml = `<!DOCTYPE html>
   <div class="lyrics" id="lyrics"></div>
   <div class="progress-wrap">
     <div class="progress" id="progressBar"><div class="fill" id="fill"></div></div>
-    <div class="time" id="timeRow"><span id="elapsed">0:00</span><span id="duration" class="duration">0:00</span></div>
+    <div class="time" id="timeRow"><span id="elapsed">0:00</span><div class="vol" id="volBox"><span>&#128266;</span><input type="range" id="vol" min="0" max="100" step="1" value="50"></div><span id="duration" class="duration">0:00</span></div>
   </div>
 <script>
   const fmt = (s) => {
@@ -245,6 +250,16 @@ const pageHtml = `<!DOCTYPE html>
     const cur = children[idx];
     if (cur) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
   };
+  const volInput = $('vol');
+  const volBox = $('volBox');
+  let lastSentVolume = -1;
+  volInput.addEventListener('input', () => {
+    const v = Number(volInput.value);
+    if (!Number.isFinite(v)) return;
+    if (lastSentVolume === v) return;
+    lastSentVolume = v;
+    location.href = 'minip://volume/' + v;
+  });
   window.__update = (info) => {
     if (info.title !== undefined) $('title').textContent = info.title;
     if (info.artist !== undefined) $('artist').textContent = info.artist;
@@ -255,6 +270,13 @@ const pageHtml = `<!DOCTYPE html>
     if (info.duration !== undefined) {
       duration = info.duration;
       $('duration').textContent = fmt(duration);
+    }
+    if (info.volume !== undefined) {
+      // external change (main player): reflect but don't echo back
+      if (Number(info.volume) !== Number(volInput.value)) {
+        volInput.value = info.volume;
+      }
+      lastSentVolume = -1;
     }
     if (info.lyrics !== undefined) {
       const lyr = info.lyrics || {};
@@ -302,11 +324,12 @@ const pageHtml = `<!DOCTYPE html>
       const target = hide ? $('timeRow') : $('metaRow');
       if (controls && target && controls.parentElement !== target) {
         if (hide) {
-          target.insertBefore(controls, target.children[1] ?? null);
+          target.insertBefore(controls, $('volBox'));
         } else {
           target.appendChild(controls);
         }
       }
+      volBox.classList.toggle('has-controls', hide);
       updateMinHeight();
     }
     if (info.showLyrics !== undefined) {
@@ -630,6 +653,13 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
       actions[url]();
       return;
     }
+    if (url.startsWith('minip://volume/')) {
+      const volume = Number(url.slice('minip://volume/'.length));
+      if (Number.isFinite(volume) && volume >= 0 && volume <= 100) {
+        controls.setVolume(volume);
+      }
+      return;
+    }
     if (url.startsWith('minip://seek/')) {
       const seconds = Number(url.slice('minip://seek/'.length));
       if (Number.isFinite(seconds) && seconds >= 0) {
@@ -706,6 +736,14 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
   }
   progressTimer ??= setInterval(() => {
     if (lastInfo) push({ elapsed: getElapsed() });
+    // keep the mini player volume slider in sync with the main player
+    mainWindow?.webContents
+      .executeJavaScript('(document.querySelector("video")?.volume ?? 1) * 100')
+      .then((volume) => {
+        const value = Number(volume);
+        if (Number.isFinite(value)) push({ volume: Math.round(value) });
+      })
+      .catch(() => {});
   }, 1000);
   pushAll();
   pushStyle(config);
