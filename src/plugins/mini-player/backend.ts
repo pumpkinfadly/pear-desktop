@@ -122,22 +122,29 @@ const pageHtml = `<!DOCTYPE html>
   body.hide-meta .lyrics { padding-top: 26px; }
   body.hide-lyrics .lyrics { display: none !important; }
   .progress-wrap { -webkit-app-region: no-drag; cursor: pointer;
-    padding: 6px 0 2px; margin-top: auto; }
-  .progress { height: 4px; border-radius: 2px; background: #3a3a3a;
+    padding: 5px 0 2px; margin-top: auto; }
+  .progress { height: 3px; border-radius: 2px; background: #2c2c2c;
     position: relative; }
   .progress .fill { position: absolute; inset: 0 auto 0 0; width: 0%;
-    border-radius: 2px; background: #ff0033; }
+    border-radius: 2px; background: #8c8c8c; }
   .time { display: flex; justify-content: space-between; align-items: center;
     gap: 8px; font-size: 10px;
-    color: #999; margin-top: 6px; font-variant-numeric: tabular-nums; }
+    color: #999; margin-top: 5px; font-variant-numeric: tabular-nums; }
   .time .controls a { width: 26px; height: 22px; }
   .time .controls a.play { width: 30px; }
   .time .duration { margin-left: 2px; }
   .vol { display: flex; align-items: center; gap: 5px; margin-left: auto;
     -webkit-app-region: no-drag; color: #999; }
-  .vol svg { width: 13px; height: 13px; display: block;
+  .vol svg { width: 12px; height: 12px; display: block;
     fill: currentColor; }
-  .vol input { width: 76px; height: 4px; accent-color: #ff0033; }
+  /* custom track/thumb: the native range renders bright and bulky */
+  .vol input { -webkit-appearance: none; appearance: none; width: 64px;
+    height: 3px; border-radius: 2px; background: #2c2c2c;
+    outline: none; cursor: pointer; }
+  .vol input::-webkit-slider-thumb { -webkit-appearance: none;
+    appearance: none; width: 8px; height: 8px; border-radius: 50%;
+    background: #8c8c8c; }
+  .vol input:hover::-webkit-slider-thumb { background: #cfcfcf; }
   body.hide-meta .row { display: none; }
 </style>
 </head>
