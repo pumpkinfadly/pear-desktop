@@ -25,9 +25,9 @@ const pageHtml = `<!DOCTYPE html>
   html, body { margin: 0; height: 100%; color: #fff;
     font-family: 'Segoe UI', Roboto, sans-serif; overflow: hidden; }
   html { background: transparent; }
-  /* --bg-alpha is clamped to >= 0.01 by the main process: a fully
-     transparent body loses hit-testing on Windows and clicks fall
-     through to the desktop */
+  /* --bg-alpha is clamped to >= 0.004 (one alpha step out of 255,
+     imperceptible) by the main process: a fully transparent body
+     loses hit-testing on Windows and clicks fall through */
   body { background: rgba(13, 13, 13, var(--bg-alpha, 1)); }
   body.dim-ui :is(.art, .title, .artist, .controls, .progress-wrap,
     .toolbar, .drag-handle) { opacity: 0; transition: opacity 0.2s ease; }
@@ -156,7 +156,7 @@ const pageHtml = `<!DOCTYPE html>
     <a href="minip://emph-cycle" title="Cycle lyrics emphasis (None/Subtle/Normal/Strong)">&#8645;</a>
     <a href="minip://toggle-meta" title="Show/hide album art and song info">&#9432;</a>
     <a href="minip://toggle-lyrics" title="Show/hide lyrics">&#9835;</a>
-    <a href="minip://cycle-opacity" title="Cycle background opacity (100/50/25/0%)">&#9744;</a>
+    <a href="minip://cycle-opacity" title="Toggle background opacity (100/0%)">&#9744;</a>
     <a href="minip://show-main" title="Switch to main player">&#9635;</a>
   </div>
   <div class="row">
@@ -478,7 +478,10 @@ const resolveOpacity = (config: {
   transparentBg?: boolean;
 }) =>
   // 1% floor: a fully transparent body loses hit-testing on Windows
-  Math.max(0.01, config.backgroundOpacity ?? (config.transparentBg ? 0.01 : 1));
+  Math.max(
+    0.004,
+    config.backgroundOpacity ?? (config.transparentBg ? 0.004 : 1),
+  );
 
 const pushStyle = (config: MiniPlayerPluginConfig) => {
   push({
@@ -661,7 +664,7 @@ const createWindow = async (config: MiniPlayerPluginConfig) => {
         (conf) => {
           // lowest step keeps a faint tint so the window never becomes
           // fully invisible
-          const steps = [1, 0.5, 0.25, 0];
+          const steps = [1, 0];
           const current = resolveOpacity(conf);
           const idx = steps.findIndex((s) => Math.abs(s - current) < 0.001);
           const next = steps[(idx + 1) % steps.length] ?? 1;

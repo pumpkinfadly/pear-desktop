@@ -657,12 +657,9 @@
         },
         "bg-opacity": {
           "label": "Background opacity",
-          "tooltip": "Adjust the mini player background opacity; below 100% the rest of the UI fades out until you hover",
+          "tooltip": "Toggle the mini player background between solid and invisible; when invisible the rest of the UI fades out until you hover",
           "values": {
             "solid": "100%",
-            "fifty": "50%",
-            "seventy-five": "75%",
-            "twenty-five": "25%",
             "invisible": "0% (invisible)"
           }
         },

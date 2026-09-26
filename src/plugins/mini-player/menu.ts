@@ -6,9 +6,6 @@ import type { MenuItemConstructorOptions } from 'electron';
 
 const backgroundOpacities = [
   { value: 1, key: 'solid' },
-  { value: 0.75, key: 'seventy-five' },
-  { value: 0.5, key: 'fifty' },
-  { value: 0.25, key: 'twenty-five' },
   { value: 0, key: 'invisible' },
 ];
 
