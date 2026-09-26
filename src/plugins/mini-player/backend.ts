@@ -59,14 +59,15 @@ const pageHtml = `<!DOCTYPE html>
     text-overflow: ellipsis; overflow: hidden; }
   .album { font-size: 11px; color: #777; white-space: nowrap;
     text-overflow: ellipsis; overflow: hidden; }
-  .controls { display: flex; gap: 6px;
+  .controls { display: flex; gap: 2px;
     -webkit-app-region: no-drag; align-items: center; }
   .controls a { display: flex; align-items: center; justify-content: center;
-    width: 34px; height: 30px; border-radius: 4px; color: #fff;
-    font-size: 15px; text-decoration: none; }
-  .controls a:hover { background: rgba(255, 255, 255, 0.12); }
-  .controls a.play { width: 40px; background: rgba(255, 255, 255, 0.1);
-    font-size: 17px; }
+    width: 28px; height: 24px; border-radius: 4px; color: #bbb;
+    text-decoration: none; }
+  .controls a svg { width: 13px; height: 13px; display: block;
+    fill: currentColor; }
+  .controls a:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  .controls a.play { width: 32px; background: rgba(255, 255, 255, 0.1); }
   .lyrics { display: none; flex-direction: column; flex: 1 1 auto;
     min-height: 0; overflow-y: auto; scrollbar-width: none; padding: 6px 2px 2px;
     margin-top: 8px;
@@ -129,7 +130,8 @@ const pageHtml = `<!DOCTYPE html>
   .time { display: flex; justify-content: space-between; align-items: center;
     gap: 8px; font-size: 10px;
     color: #999; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .time .controls a { width: 32px; height: 28px; font-size: 16px; }
+  .time .controls a { width: 26px; height: 22px; }
+  .time .controls a.play { width: 30px; }
   .time .duration { margin-left: 2px; }
   .vol { display: flex; align-items: center; gap: 5px; margin-left: auto;
     -webkit-app-region: no-drag; color: #999; }
@@ -164,9 +166,9 @@ const pageHtml = `<!DOCTYPE html>
     <div class="time" id="timeRow">
       <span id="elapsed">0:00</span>
       <div class="controls">
-        <a href="minip://prev" title="Previous">&#9198;</a>
+        <a href="minip://prev" title="Previous"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></a>
         <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
-        <a href="minip://next" title="Next">&#9197;</a>
+        <a href="minip://next" title="Next"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg></a>
       </div>
       <div class="vol" id="volBox"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3z"/><path d="M16 8.5a4.5 4.5 0 0 1 0 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M18.5 6a8 8 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
       <span id="duration" class="duration">0:00</span>
@@ -276,7 +278,9 @@ const pageHtml = `<!DOCTYPE html>
     }
     if (info.imageSrc !== undefined) $('art').src = info.imageSrc || '';
     if (info.isPaused !== undefined) {
-      $('play').innerHTML = info.isPaused ? '&#9654;' : '&#9208;';
+      $('play').innerHTML = info.isPaused
+        ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5h3v14H8zm5 0h3v14h-3z"/></svg>'
+        : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>';
     }
     if (info.duration !== undefined) {
       duration = info.duration;
