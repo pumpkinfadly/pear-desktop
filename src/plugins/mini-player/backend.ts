@@ -143,8 +143,8 @@ const pageHtml = `<!DOCTYPE html>
     outline: none; cursor: pointer; }
   .vol input::-webkit-slider-thumb { -webkit-appearance: none;
     appearance: none; width: 8px; height: 8px; border-radius: 50%;
-    background: #8c8c8c; }
-  .vol input:hover::-webkit-slider-thumb { background: #cfcfcf; }
+    background: #ff0033; }
+  .vol input:hover::-webkit-slider-thumb { background: #ff4d6e; }
   body.hide-meta .row { display: none; }
 </style>
 </head>
@@ -268,7 +268,15 @@ const pageHtml = `<!DOCTYPE html>
   const volInput = $('vol');
   const volBox = $('volBox');
   let lastSentVolume = -1;
+  // paint the filled portion red, matching the seek bar
+  const paintVol = () => {
+    const p = Math.min(100, Math.max(0, Number(volInput.value) || 0));
+    volInput.style.background =
+      'linear-gradient(to right, #ff0033 ' + p + '%, #2c2c2c ' + p + '%)';
+  };
+  paintVol();
   volInput.addEventListener('input', () => {
+    paintVol();
     const v = Number(volInput.value);
     if (!Number.isFinite(v)) return;
     if (lastSentVolume === v) return;
@@ -301,6 +309,7 @@ const pageHtml = `<!DOCTYPE html>
         volInput.value = info.volume;
       }
       lastSentVolume = -1;
+      paintVol();
     }
     if (info.lyrics !== undefined) {
       const lyr = info.lyrics || {};
