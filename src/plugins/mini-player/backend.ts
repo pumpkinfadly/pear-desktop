@@ -57,8 +57,10 @@ const pageHtml = `<!DOCTYPE html>
     text-overflow: ellipsis; overflow: hidden; }
   .artist { font-size: 12px; color: #aaa; white-space: nowrap;
     text-overflow: ellipsis; overflow: hidden; }
-  .controls { display: flex; gap: 6px; margin-top: 4px;
-    -webkit-app-region: no-drag; }
+  .album { font-size: 11px; color: #777; white-space: nowrap;
+    text-overflow: ellipsis; overflow: hidden; }
+  .controls { display: flex; gap: 6px;
+    -webkit-app-region: no-drag; align-items: center; }
   .controls a { display: flex; align-items: center; justify-content: center;
     width: 34px; height: 30px; border-radius: 4px; color: #fff;
     font-size: 15px; text-decoration: none; }
@@ -127,12 +129,10 @@ const pageHtml = `<!DOCTYPE html>
   .time { display: flex; justify-content: space-between; align-items: center;
     gap: 8px; font-size: 10px;
     color: #999; margin-top: 6px; font-variant-numeric: tabular-nums; }
-  .time .controls { margin-top: 0; }
   .time .controls a { width: 32px; height: 28px; font-size: 16px; }
   .time .duration { margin-left: auto; }
-  .vol { display: flex; align-items: center; gap: 4px; margin-left: auto;
+  .vol { display: flex; align-items: center; gap: 4px;
     -webkit-app-region: no-drag; color: #999; }
-  .vol.has-controls { margin-left: 0; }
   .vol span { font-size: 13px; }
   .vol input { width: 76px; height: 4px; accent-color: #ff0033; }
   body.hide-meta .row { display: none; }
@@ -154,17 +154,22 @@ const pageHtml = `<!DOCTYPE html>
     <div class="meta" id="metaRow">
       <div class="title" id="title">YouTube Music</div>
       <div class="artist" id="artist"></div>
-      <div class="controls">
-        <a href="minip://prev" title="Previous">&#9198;</a>
-        <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
-        <a href="minip://next" title="Next">&#9197;</a>
-      </div>
+      <div class="album" id="album" style="display:none"></div>
     </div>
   </div>
   <div class="lyrics" id="lyrics"></div>
   <div class="progress-wrap">
     <div class="progress" id="progressBar"><div class="fill" id="fill"></div></div>
-    <div class="time" id="timeRow"><span id="elapsed">0:00</span><div class="vol" id="volBox"><span>&#128266;</span><input type="range" id="vol" min="0" max="100" step="1" value="50"></div><span id="duration" class="duration">0:00</span></div>
+    <div class="time" id="timeRow">
+      <span id="elapsed">0:00</span>
+      <div class="controls">
+        <a href="minip://prev" title="Previous">&#9198;</a>
+        <a href="minip://toggle" class="play" id="play" title="Play/Pause">&#9654;</a>
+        <a href="minip://next" title="Next">&#9197;</a>
+      </div>
+      <div class="vol" id="volBox"><span>&#128266;</span><input type="range" id="vol" min="0" max="100" step="1" value="50"></div>
+      <span id="duration" class="duration">0:00</span>
+    </div>
   </div>
 <script>
   const fmt = (s) => {
@@ -263,6 +268,11 @@ const pageHtml = `<!DOCTYPE html>
   window.__update = (info) => {
     if (info.title !== undefined) $('title').textContent = info.title;
     if (info.artist !== undefined) $('artist').textContent = info.artist;
+    if (info.album !== undefined) {
+      const albumEl = $('album');
+      albumEl.textContent = info.album || '';
+      albumEl.style.display = info.album ? 'block' : 'none';
+    }
     if (info.imageSrc !== undefined) $('art').src = info.imageSrc || '';
     if (info.isPaused !== undefined) {
       $('play').innerHTML = info.isPaused ? '&#9654;' : '&#9208;';
@@ -318,18 +328,7 @@ const pageHtml = `<!DOCTYPE html>
       document.body.style.setProperty('--lyr-color', String(info.color));
     }
     if (info.hideMeta !== undefined) {
-      const hide = !!info.hideMeta;
-      document.body.classList.toggle('hide-meta', hide);
-      const controls = document.querySelector('.controls');
-      const target = hide ? $('timeRow') : $('metaRow');
-      if (controls && target && controls.parentElement !== target) {
-        if (hide) {
-          target.insertBefore(controls, $('volBox'));
-        } else {
-          target.appendChild(controls);
-        }
-      }
-      volBox.classList.toggle('has-controls', hide);
+      document.body.classList.toggle('hide-meta', !!info.hideMeta);
       updateMinHeight();
     }
     if (info.showLyrics !== undefined) {
@@ -418,6 +417,7 @@ const pushAll = () => {
   push({
     title: lastInfo.title,
     artist: lastInfo.artist,
+    album: lastInfo.album ?? '',
     imageSrc: lastInfo.imageSrc ?? '',
     isPaused: !playing,
     duration: lastInfo.songDuration,
